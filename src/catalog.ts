@@ -168,14 +168,15 @@ export interface AppDef {
   icon: string;
   hue: number;
   cat: 'create' | 'direct' | 'transform' | 'finish';
-  badge?: 'new' | 'top';
+  badge?: 'new' | 'soon' | 'top';
   /** Motion preset whose rendered clip stands in as this app's cover art. */
   cover: string;
   /** A clip of the app's own output under public/, used as the cover in place of the preset clip. */
   clip?: string;
 }
 
-export const badgeLabel = (b: AppDef['badge']) => (b === 'top' ? 'Top' : b === 'new' ? 'New' : '');
+export const badgeLabel = (b: AppDef['badge']) =>
+  (b === 'top' ? 'Top' : b === 'new' ? 'New' : b === 'soon' ? 'Soon' : '');
 
 export const APP_CATS = [
   { id: 'all', label: 'All' },
@@ -205,6 +206,13 @@ export const APPS: AppDef[] = [
   { id: 'upscale', name: 'Upscale', blurb: 'Sharpen, redraw or dream any take or file at a higher resolution.', route: '/upscale', icon: 'up', hue: 50, cat: 'finish', cover: 'rack-focus', clip: '/apps/upscale.mp4' },
   { id: 'speak', name: 'Speak', blurb: 'Turn a face and a voice track into a talking shot that follows the audio.', route: '/speak', icon: 'person', hue: 12, cat: 'transform', cover: 'handheld' },
   { id: 'sound', name: 'Add sound', blurb: 'Generate a soundtrack for a silent take and keep the picture as it is.', route: '/speak?mode=sound', icon: 'audio', hue: 190, cat: 'create', cover: 'storm' },
+  // Kept in the catalogue, but their model routes do not exist on the provider
+  // yet: the screens are here, Generate is not. See src/ComingSoon.tsx.
+  { id: 'stage', name: 'Stage', blurb: 'Block a shot in 3D and render it as a finished shot that moves like the blocking.', route: '/stage', icon: 'camera', hue: 36, cat: 'direct', badge: 'soon', cover: 'push-in', clip: '/apps/stage.mp4' },
+  { id: 'effects', name: 'Effects', blurb: 'Apply a one-click effect to a clip or a still, from cutout and flood to pop and inflate.', route: '/effects', icon: 'sparkle', hue: 300, cat: 'transform', badge: 'soon', cover: 'shatter', clip: '/apps/effects.mp4' },
+  { id: 'mirror', name: 'Mirror', blurb: 'Film a move on your phone and put that motion onto any character.', route: '/mirror', icon: 'mirror', hue: 280, cat: 'transform', badge: 'soon', cover: 'snorricam', clip: '/apps/mirror.mp4' },
+  { id: 'reshoot', name: 'Reshoot', blurb: 'Re-aim the camera on an existing clip: orbit, rise or push in after the fact.', route: '/reshoot', icon: 'orbit', hue: 230, cat: 'transform', badge: 'soon', cover: 'freeze-orbit', clip: '/apps/reshoot.mp4' },
+  { id: 'object', name: 'Object', blurb: 'Turn one still into a textured 3D model you can spin, download or place in Stage.', route: '/object', icon: 'cube', hue: 30, cat: 'create', badge: 'soon', cover: 'turntable', clip: '/apps/object.mp4' },
 ];
 
 /** Ready-made setups. Recreate loads one into its app via URL params. */

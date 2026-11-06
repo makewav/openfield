@@ -66,3 +66,35 @@ export function tierSize(t: RenderTier, ratio: number, align: 32 | 64 = 64): { w
 /** tierSize for a source of w x h (16:9 when unknown). */
 export const tierSizeOf = (t: RenderTier, w: number | undefined, h: number | undefined, align: 32 | 64 = 64) =>
   tierSize(t, w && h ? w / h : 16 / 9, align);
+
+const ORDER: Record<RenderTier, number> = { '480p': 0, '720p': 1, '1080p': 2 };
+
+/** The tier, held at or under an app's largest size. */
+export function capTier(t: RenderTier, max: RenderTier = '1080p'): RenderTier {
+  return ORDER[t] > ORDER[max] ? max : t;
+}
+
+/**
+ * The largest size each app asks for. These used to be GPU limits; now they are
+ * the size each app's screen is designed around, so a small app does not quietly
+ * get asked for a huge frame.
+ */
+export const APP_MAX_TIER = {
+  video: '1080p',
+  director: '1080p',
+  scene: '720p',
+  mirror: '720p',
+  restyle: '720p',
+  swap: '720p',
+  effects: '720p',
+  speak: '720p',
+  extend: '720p',
+  transition: '720p',
+  reshoot: '480p',
+  stage: '720p',
+} as const satisfies Record<string, RenderTier>;
+
+export type TierApp = keyof typeof APP_MAX_TIER;
+
+/** The tier an app renders at: the chosen one, capped at what the app asks for. */
+export const appTier = (app: TierApp, t: RenderTier): RenderTier => capTier(t, APP_MAX_TIER[app]);

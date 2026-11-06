@@ -349,6 +349,16 @@ input[type='range'] { accent-color: var(--accent); }
 .gen-tile:disabled { background: var(--panel-2); color: var(--mute); cursor: not-allowed; box-shadow: inset 0 0 0 1px rgba(255, 181, 71, 0.14); filter: none; }
 .gen-tile small { font: 550 11px/1.2 var(--font-ui); font-variation-settings: 'wdth' 100; letter-spacing: 0; text-transform: none; opacity: 0.72; text-align: center; }
 
+/* An app the port has not reached: the screen stays, the action does not. */
+.coming-soon {
+  margin: 14px 0 18px; padding: 14px 16px; border-radius: 12px;
+  background: var(--panel); border: 1px solid var(--line-2);
+  border-left: 3px solid var(--accent);
+}
+.coming-soon-title { font-weight: 650; color: var(--accent-hi); margin-bottom: 6px; }
+.coming-soon p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--text); }
+.coming-soon p + p { margin-top: 6px; color: var(--mute); }
+
 .hero-empty { position: relative; text-align: center; padding: 64px 20px 30px; }
 .hero-empty .display { font-size: clamp(40px, 5.6vw, 84px); }
 .hero-empty > .label { color: var(--accent-hi); }

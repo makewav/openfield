@@ -14,6 +14,11 @@ import SpeakPage from './pages/Speak';
 import EditPage from './pages/Edit';
 import CastPage from './pages/Cast';
 import CutoutPage from './pages/Cutout';
+import EffectsPage from './pages/Effects';
+import MirrorPage from './pages/Mirror';
+import ReshootPage from './pages/Reshoot';
+import StagePage from './pages/Stage';
+import ObjectPage from './pages/Object';
 import { Apps, Explore, Library } from './pages/Home';
 
 const SECTIONS = [
@@ -41,6 +46,11 @@ export default function App() {
     if (path === '/edit') return <EditPage />;
     if (path === '/cast') return <CastPage />;
     if (path === '/cutout') return <CutoutPage />;
+    if (path === '/effects') return <EffectsPage />;
+    if (path === '/mirror') return <MirrorPage />;
+    if (path === '/reshoot') return <ReshootPage />;
+    if (path === '/stage') return <StagePage />;
+    if (path === '/object') return <ObjectPage />;
     if (path === '/apps') return <Apps />;
     if (path === '/library') return <Library />;
     return <Explore />;
