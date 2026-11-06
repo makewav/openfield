@@ -10,10 +10,10 @@ import { api, inputUrl, mediaUrl, uploadFile, type Take } from '../api';
 import { CUTOUT_BACKGROUNDS, CUTOUT_COLORS, CUTOUT_MAX_SECONDS, CUTOUT_MODES, cutoutSize, type CutoutBackground, type CutoutMode } from '../catalog';
 import { setParams, useRoute } from '../router';
 import { inFeed, isImage, settingsOf, takeHandoff, toast, useStore } from '../store';
-import { Icon, MediaCard, Switch, fmtSeconds, useEstimate } from '../ui';
+import { Icon, MediaCard, Switch } from '../ui';
 import Viewer, { recreate, remove } from '../Viewer';
 import { usePageDrop } from '../drop';
-import { DropWell, probeClip } from './Mirror';
+import { DropWell, probeClip } from '../SourcePick';
 
 /** What is being cut out: an uploaded file, or a finished take by id. */
 interface Source { kind: 'image' | 'video'; token?: string; take?: number; url: string; w: number; h: number; seconds: number; name: string }
@@ -68,7 +68,6 @@ export default function CutoutPage() {
   const video = src?.kind === 'video';
   const size = cutoutSize(src?.w ?? 0, src?.h ?? 0);
   const seconds = video ? Math.min(CUTOUT_MAX_SECONDS, Math.round((src?.seconds ?? 0) * 10) / 10) : 0;
-  const est = useEstimate(src ? { kind: video ? 'video' : 'still', app: 'cutout', w: size.w, h: size.h, ...(video ? { seconds } : {}) } : null);
   const takes = useStore((s) => s.takes.filter((t) => inFeed(t) && settingsOf(t).app === 'cutout'));
 
   async function addFile(f: File) {
@@ -198,7 +197,7 @@ export default function CutoutPage() {
 
         <button type="button" className="generate" style={{ marginTop: 'auto' }} disabled={!!busy || !src} onClick={() => void go()}>
           <span>{busy ?? 'Remove background'}</span>
-          <span className="cost">{est ? fmtSeconds(est) : video && mode !== 'matte' ? 'BiRefNet + SAM 3.1' : 'BiRefNet'}</span>
+          <span className="cost">{video && mode !== 'matte' ? 'BiRefNet + SAM 3.1' : 'BiRefNet'}</span>
         </button>
       </aside>
 

@@ -12,7 +12,7 @@ import { usePageDrop } from '../drop';
 import { setParams, useRoute } from '../router';
 import { SourceSlot, fileKind, loadFile, useTakeParam, type Source } from '../SourcePick';
 import { inFeed, settingsOf, toast, useStore } from '../store';
-import { Icon, MediaCard, Stepper, TierChip, fmtSeconds, useEstimate, useTierChoice } from '../ui';
+import { Icon, MediaCard, Stepper } from '../ui';
 import Viewer, { recreate, remove } from '../Viewer';
 import { MentionBox, useMentioned } from '../Mention';
 
@@ -26,7 +26,6 @@ export default function SpeakPage() {
   const [clip, setClip] = useState<Source | null>(null);
   const [words, setWords] = useState('');
   const [prompt, setPrompt] = useState('');
-  const [res, setRes] = useTierChoice('speak');
   const [count, setCount] = useState(1);
   const [busy, setBusy] = useState<string | null>(null);
   const [viewing, setViewing] = useState<number | null>(null);
@@ -55,14 +54,14 @@ export default function SpeakPage() {
       }
     },
   );
-  // Speak renders in two stages, so its size is 64-aligned.
+  // Speak renders in two stages, so its size is 64-aligned, at a fixed 720p
+  // extent: there is no local render-size setting to follow any more.
   const size = (() => {
-    return tierSizeOf(res, face?.w, face?.h, 64);
+    return tierSizeOf('720p', face?.w, face?.h, 64);
   })();
   const seconds = speak
     ? Math.max(1, Math.min(10, Math.floor((voice?.seconds ?? 5) * 10) / 10))
     : Math.max(1, Math.min(20, Math.floor((clip?.seconds ?? 5) * 10) / 10));
-  const est = useEstimate({ kind: 'video', model: mode, w: size.w, h: size.h, seconds: Math.round(seconds) });
   const takes = useStore((s) => s.takes.filter((t) => inFeed(t) && settingsOf(t).app === mode));
   // A cast member named in the direction stands in for the face: their hero frame becomes it.
   const castFace = useMentioned(prompt).some((m) => m.refs.length);
@@ -142,15 +141,13 @@ export default function SpeakPage() {
 
         <div className="chip-row" style={{ alignItems: 'center' }}>
           <span className="chip"><Icon name="clock" size={14} />{seconds.toFixed(1)}s</span>
-          {speak
-            ? <TierChip app="speak" value={res} onChange={setRes} />
-            : <span className="chip"><Icon name="aspect" size={14} />{clip?.w ? `${clip.w}x${clip.h}` : 'clip size'}</span>}
+          {!speak && <span className="chip"><Icon name="aspect" size={14} />{clip?.w ? `${clip.w}x${clip.h}` : 'clip size'}</span>}
           <Stepper value={count} min={1} max={4} onChange={setCount} fmt={(v) => `${v}/4`} />
         </div>
 
         <button type="button" className="generate" style={{ marginTop: 'auto' }} disabled={!!busy || !ready} onClick={() => void go()}>
           <span>{busy ?? (speak ? 'Speak' : 'Add sound')}</span>
-          <span className="cost">{speak ? `${size.w}x${size.h}${est ? ` · ${fmtSeconds(est * count)}` : ''}` : est ? fmtSeconds(est * count) : 'LTX-2.5 audio + video'}</span>
+          <span className="cost">{speak ? `${size.w}x${size.h}` : 'LTX-2.5 audio + video'}</span>
         </button>
       </aside>
 

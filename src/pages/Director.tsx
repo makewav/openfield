@@ -3,7 +3,7 @@
  * look and grade are prompt compilers, the era is a scrubber that names the
  * decade and grades the output, and the compiled prompt is always visible.
  * Frame makes hero stills, Shot films one, Scene plans a shot list with a
- * local LLM and shoots it into one cut.
+ * planner model and shoots it into one cut.
  */
 import { useEffect, useRef, useState } from 'react';
 import { api, inputUrl, mediaUrl, posterUrl, takeAsInput, uploadFile, type ScenePlan, type Take } from '../api';
@@ -15,7 +15,7 @@ import {
 } from '../catalog';
 import { setParams, useRoute } from '../router';
 import { isActive, isImage, settingsOf, toast, useStore, inFeed } from '../store';
-import { ChipMenu, Icon, MediaCard, useClickAway, Stepper, Switch, fmtSeconds, useEstimate, Spill, presetClip, TierChip, useTierChoice } from '../ui';
+import { ChipMenu, Icon, MediaCard, useClickAway, Stepper, Switch, Spill, presetClip } from '../ui';
 import Viewer, { recreate, remove } from '../Viewer';
 import { MentionBox } from '../Mention';
 import { useCast } from '../castStore';
@@ -49,25 +49,19 @@ export default function DirectorPage() {
   // Scene mode
   const [shots, setShots] = useState<StripShot[]>([]);
   const [want, setWant] = useState(0);
-  const [res, setRes] = useTierChoice(mode === 'scene' ? 'scene' : 'director');
   const [heroFrames, setHeroFrames] = useState(false);
   const [planning, setPlanning] = useState<string | null>(null);
   const [planNote, setPlanNote] = useState('');
   const [planLive, setPlanLive] = useState<PlanLive | null>(null);
   const [think, setThink] = useState(false);
-  /** OPENFIELD_LLM_REASONING on the server overrides the switch; null = the switch decides. */
-  const thinkOverride = useStore((s) => s.status?.plannerReasoning ?? null);
   const [cutId, setCutId] = useState<number | null>(null);
 
   const direction = directorDirection(picks, era);
   const moveText = mode === 'video' ? presetById(move).text : '';
   const compiled = compilePrompt([moveText, scene, direction.join(', ')]);
-  const size = mode === 'image' ? sizeFor(aspect, 1.0) : videoFrame(aspect, res);
+  // Video frames are sized at a fixed 720p extent: there is no local render size to follow.
+  const size = mode === 'image' ? sizeFor(aspect, 1.0) : videoFrame(aspect, '720p');
   const toShoot = shots.filter((s) => !s.take || s.cut == null);
-  const shotSecs = toShoot.length ? Math.round(toShoot.reduce((n, s) => n + s.seconds, 0) / toShoot.length) : seconds;
-  const est = useEstimate(mode === 'image'
-    ? { kind: 'still', model: imageModel, quality: 'quality', w: size.w, h: size.h }
-    : { kind: 'video', model: 'ltx25', w: size.w, h: size.h, seconds: mode === 'scene' ? shotSecs : seconds });
   const takes = useStore((s) => s.takes.filter((t) => {
     const st = settingsOf(t);
     return inFeed(t) && st.app === 'director' && !st.sceneOf && (mode === 'scene' ? !!st.cut : !st.cut);
@@ -154,7 +148,7 @@ export default function DirectorPage() {
           if (q.status === 'failed' || !q.shots) { toast(q.error ?? 'Planning failed', true); return; }
           setShots(q.shots.map((s) => ({ ...s, key: newKey() })));
           setCutId(null);
-          const by = q.planner === 'engine' ? 'Gemma 3 on the engine' : q.planner === 'llm' ? 'the OpenAI-compatible LLM' : q.planner === 'ollama' ? 'Ollama' : 'a sentence split (no LLM answered)';
+          const by = q.planner === 'engine' ? 'Gemma 3' : q.planner === 'llm' ? 'the OpenAI-compatible LLM' : q.planner === 'ollama' ? 'Ollama' : 'a sentence split (no LLM answered)';
           setPlanNote(`${q.shots.length} shots, planned by ${by}${q.seconds ? ` in ${Math.round(q.seconds)}s` : ''}.`);
         } catch (e) {
           setPlanning(null);
@@ -210,7 +204,6 @@ export default function DirectorPage() {
 
   const axes = mode === 'scene' ? AXES.filter((a) => a.id !== 'framing') : AXES;
   const canGo = mode === 'scene' ? shots.length > 0 && shots.every((s) => s.action.trim()) : !!compiled;
-  const sceneEst = est ? est * toShoot.length * (heroFrames ? 1.25 : 1) : null;
 
   return (
     <div className="rail-layout" style={{ gridTemplateColumns: '380px 1fr' }}>
@@ -289,25 +282,18 @@ export default function DirectorPage() {
             <div className="chip-row">
               <ChipMenu icon="grid" value={want} onChange={setWant} title="Shots to plan" options={[{ value: 0, label: 'Auto shots' }, ...Array.from({ length: SCENE_MAX_SHOTS - SCENE_MIN_SHOTS + 1 }, (_, i) => ({ value: i + SCENE_MIN_SHOTS, label: `${i + SCENE_MIN_SHOTS} shots` }))]} />
               <ChipMenu icon="aspect" value={aspect} onChange={setAspect} title="Aspect" options={ASPECTS.map((a) => ({ value: a.id, label: a.id }))} />
-              <TierChip app="scene" value={res} onChange={setRes} />
               <span className="chip" style={{ gap: 10 }} title="Make a Qwen-Image hero frame per shot first, then shoot from it"><Icon name="image" size={14} />Hero frames <Switch on={heroFrames} onChange={setHeroFrames} label="hero frames" /></span>
               <span className="chip" style={{ gap: 10 }}><Icon name="audio" size={14} />Sound <Switch on={audio} onChange={setAudio} label="sound" /></span>
-              {thinkOverride ? (
-                <span className="chip dim" title={`Set on the server: OPENFIELD_LLM_REASONING=${thinkOverride}`}>
-                  <Icon name="sparkle" size={14} />Think first: {thinkOverride === 'none' ? 'off' : 'on'} (server)
-                </span>
-              ) : (
-                <span className="chip" style={{ gap: 10 }} title="Let the planner's model think before it writes the shot list: slower, steadier on scenes with many beats. Leave it off to try ideas quickly; switch it on once the scene works.">
-                  <Icon name="sparkle" size={14} />Think first <Switch on={think} onChange={setThink} label="think first" />
-                </span>
-              )}
+              <span className="chip" style={{ gap: 10 }} title="Let the planner's model think before it writes the shot list: slower, steadier on scenes with many beats. Leave it off to try ideas quickly; switch it on once the scene works.">
+                <Icon name="sparkle" size={14} />Think first <Switch on={think} onChange={setThink} label="think first" />
+              </span>
             </div>
             <button type="button" className="btn" disabled={!!planning || !scene.trim()} onClick={() => void plan()}>
               <Icon name="sparkle" size={14} />{planning ? 'Planning the shots...' : shots.length ? 'Plan again' : 'Plan shots'}
             </button>
             <button type="button" className="generate" style={{ marginTop: 'auto' }} disabled={busy || !canGo} onClick={() => void shootAll()}>
               <span>{busy ? 'Queuing...' : toShoot.length === shots.length ? 'Shoot all' : toShoot.length ? `Shoot ${toShoot.length} and cut` : 'Cut again'}</span>
-              <span className="cost">{size.w}x{size.h}{sceneEst ? ` · ${fmtSeconds(sceneEst)}` : ''}</span>
+              <span className="cost">{size.w}x{size.h}</span>
             </button>
           </>
         ) : (
@@ -317,13 +303,12 @@ export default function DirectorPage() {
                 ? <ChipMenu icon="sparkle" value={imageModel} onChange={setImageModel} title="Model" options={IMAGE_MODELS.map((m) => ({ value: m.id, label: m.label }))} />
                 : <ChipMenu icon="clock" value={seconds} onChange={setSeconds} title="Duration" options={[3, 5, 8, 10].map((d) => ({ value: d, label: `${d}s` }))} />}
               <ChipMenu icon="aspect" value={aspect} onChange={setAspect} title="Aspect" options={ASPECTS.map((a) => ({ value: a.id, label: a.id }))} />
-              {mode === 'video' && <TierChip app="director" value={res} onChange={setRes} />}
               <Stepper value={count} min={1} max={4} onChange={setCount} fmt={(v) => `${v}/4`} />
               {mode === 'video' && <span className="chip" style={{ gap: 10 }}><Icon name="audio" size={14} />Sound <Switch on={audio && ramp === 'linear'} onChange={setAudio} label="sound" /></span>}
             </div>
             <button type="button" className="generate" style={{ marginTop: 'auto' }} disabled={busy || !canGo} onClick={() => void go()}>
               <span>{busy ? 'Queuing...' : mode === 'image' ? 'Make frames' : 'Shoot'}</span>
-              <span className="cost">{size.w}x{size.h}{est ? ` · ${fmtSeconds(est * count)}` : ''}</span>
+              <span className="cost">{size.w}x{size.h}</span>
             </button>
           </>
         )}
@@ -344,7 +329,7 @@ export default function DirectorPage() {
                 <div className="display" style={{ fontSize: 'clamp(34px,4.6vw,60px)' }}>Cover the scene <span className="hl">in shots</span></div>
                 <div className="steps3">
                   <div><span className="label">01</span><b>Write the scene</b><span className="dim">Set genre, era and speed, or leave them on Auto.</span></div>
-                  <div><span className="label">02</span><b>Plan shots</b><span className="dim">A local model splits it into framings, moves and actions. Edit any of it.</span></div>
+                  <div><span className="label">02</span><b>Plan shots</b><span className="dim">The planner splits it into framings, moves and actions. Edit any of it.</span></div>
                   <div><span className="label">03</span><b>Shoot all</b><span className="dim">Each shot renders on its own, then they cut together.</span></div>
                 </div>
               </div>
@@ -446,13 +431,13 @@ interface PlanLive { text: string; partial: { framing: string; move: string; act
 
 function planLiveOf(q: ScenePlan, want: number, started: number): PlanLive {
   const partial = q.partial ?? [];
-  const who = q.stage === 'engine' ? 'Gemma 3 on the engine'
+  const who = q.stage === 'engine' ? 'Gemma 3'
     : q.stage === 'llm' ? (q.model || 'the OpenAI-compatible LLM')
     : q.stage === 'ollama' ? 'Ollama' : 'The planner';
   const n = partial.length;
   const doing = q.phase === 'thinking' ? 'thinking'
     : q.phase === 'writing' ? (want && n >= want ? 'finishing the list' : `writing shot ${n + 1}${want ? ` of ${want}` : ''}`)
-    : q.stage === 'engine' ? 'waiting for the engine' : 'waiting for the model';
+    : 'waiting for the model';
   const secs = Math.round((Date.now() - started) / 1000);
   return { text: `${who}: ${doing} · ${secs}s`, partial, slots: Math.max(want || 3, n + (q.phase === 'writing' && (!want || n < want) ? 1 : 0)) };
 }
@@ -468,7 +453,7 @@ function ShotStrip(p: {
     <div className="strip-wrap">
       <div className="strip-head">
         <span className="label">Shot list{p.shots.length ? ` · ${p.shots.length} shots · ${total}s before ramps` : ''}</span>
-        <span className="dim" style={{ fontSize: 12 }}>{p.planning ? (p.planLive?.text ?? 'Planning on the local model...') : p.planNote}</span>
+        <span className="dim" style={{ fontSize: 12 }}>{p.planning ? (p.planLive?.text ?? 'Planning the shot list...') : p.planNote}</span>
       </div>
       <div className="strip">
         {p.planning && !p.shots.length && Array.from({ length: p.planLive?.slots ?? 3 }, (_, i) => {
@@ -499,11 +484,8 @@ function ShotCard(p: {
   const { shot: s } = p;
   const take = s.take ? p.takes.find((t) => t.id === s.take) : undefined;
   const hero = s.hero ? p.takes.find((t) => t.id === s.hero) : undefined;
-  const progress = useStore((st) => {
-    const live = take && isActive(take) ? take : hero && isActive(hero) ? hero : undefined;
-    return live?.prompt_id ? st.progress[live.prompt_id] : undefined;
-  });
-  const pct = progress ? Math.round((progress.value / Math.max(1, progress.max)) * 100) : 0;
+  // The live state has the take status only: the strip says what a shot is doing,
+  // not a step count.
   const vref = useRef<HTMLVideoElement>(null);
   const state = take?.status === 'done' ? 'done'
     : take && isActive(take) ? (take.status === 'rendering' ? 'Shooting' : 'Queued')
@@ -525,7 +507,6 @@ function ShotCard(p: {
         ) : hero?.status === 'done' ? <img src={posterUrl(hero.id)} alt="" style={{ opacity: 0.6 }} /> : null}
         <span className="shot-no">{p.i + 1}</span>
         {state && state !== 'done' && <span className={`shot-state ${state === 'failed' || state === 'stopped' ? 'bad' : ''}`}>{state}</span>}
-        {(take && isActive(take)) || (hero && isActive(hero)) ? <div className="progress"><i style={{ width: `${pct}%` }} /></div> : null}
         {take?.status === 'done' && <span className="badge cool shot-len">{outSecs ?? s.seconds}s</span>}
       </div>
       <div className="shot-body">
@@ -554,8 +535,8 @@ function ShotCard(p: {
 }
 
 /**
- * The cast members a shot holds. The server starts such a shot from a Cast
- * hero frame of them (castHeroSeam in server/scene.ts), then shoots it with LTX.
+ * The cast members a shot holds. Such a shot starts from a Cast hero frame of
+ * them, then is shot with LTX.
  */
 function ShotCast(p: { ids: number[]; onChange: (ids: number[]) => void }) {
   const cast = useCast();

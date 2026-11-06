@@ -1,10 +1,8 @@
-/** Shared UI kit: icons, chips with menus, media cards, GPU chip, logo. */
+/** Shared UI kit: icons, chips with menus, media cards, logo. */
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { api, posterUrl, mediaUrl, turntableUrl, type Take } from './api';
-import { isActive, isImage, isModel, refreshStatus, settingsOf, toast, useStore } from './store';
-import { APP_MAX_TIER, RENDER_TIERS, appTier, tierCapNote, tierDef, tiersUpTo, type RenderTier, type TierApp } from './renderTier';
+import { posterUrl, mediaUrl, type Take } from './api';
+import { isActive, isImage, settingsOf, useStore } from './store';
 import { takeDragProps } from './drop';
-import { VIDEO_DECODES, type VideoDecode } from './videoDecode';
 
 // ---------- icons (1.6px stroke, 16px box) ----------
 const P: Record<string, ReactNode> = {
@@ -150,153 +148,6 @@ export function Toast() {
   return <div className={`toast ${t.err ? 'err' : ''}`}>{t.text}</div>;
 }
 
-// ---------- render size ----------
-/** The machine-wide render size (Setup, or the GPU chip). 720p until the server answers. */
-export function useRenderTier(): RenderTier {
-  return useStore((s) => s.status?.renderTier?.tier) ?? '720p';
-}
-
-/**
- * A page's size chip: it follows the machine-wide render size until a size is
- * picked on the page, and stays at or under the app's largest safe size.
- */
-export function useTierChoice(app: TierApp): [RenderTier, (t: RenderTier) => void] {
-  const global = useRenderTier();
-  const [own, setOwn] = useState<RenderTier | null>(null);
-  return [appTier(app, own ?? global), setOwn];
-}
-
-/** The size chip itself. Apps that stop below 1080p say so, and point at Upscale. */
-export function TierChip({ app, value, onChange }: { app: TierApp; value: RenderTier; onChange: (t: RenderTier) => void }) {
-  // The judge preview stops every app at 720p.
-  const judge = useStore((s) => !!s.status?.judge);
-  const max = judge && APP_MAX_TIER[app] === '1080p' ? '720p' : APP_MAX_TIER[app];
-  return (
-    <ChipMenu icon="res" value={value} onChange={onChange}
-      title={tierCapNote(app) ?? 'Render size'}
-      options={tiersUpTo(max).map((t) => ({ value: t.id, label: t.id, note: t.short }))} />
-  );
-}
-
-/** The machine-wide render size, as Setup and the GPU chip show it. Shared by every browser and the MCP server. */
-export function RenderTierPicker({ compact }: { compact?: boolean }) {
-  const st = useStore((s) => s.status?.renderTier);
-  const judge = useStore((s) => !!s.status?.judge);
-  const [busy, setBusy] = useState(false);
-  async function pick(t: RenderTier | null) {
-    setBusy(true);
-    try {
-      await api.setRenderTier(t);
-      await refreshStatus();
-    } catch (e) {
-      toast(e instanceof Error ? e.message : 'could not save the render size', true);
-    } finally {
-      setBusy(false);
-    }
-  }
-  const cur = st?.tier ?? '720p';
-  const why = !st ? '' : st.source === 'env' ? 'Set by OPENFIELD_RENDER_TIER.' : st.source === 'gpu' ? 'Picked for this card.' : `Your pick. This card's default is ${st.auto}.`;
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, width: '100%' }}>
-      <div className="seg">
-        {RENDER_TIERS.map((t) => (
-          <button key={t.id} type="button" className={cur === t.id ? 'on' : ''} disabled={busy || judge} title={t.note} onClick={() => void pick(t.id)}>
-            {compact ? t.id : t.label}
-          </button>
-        ))}
-      </div>
-      <div className="dim" style={{ fontSize: 12 }}>
-        {judge ? 'Fixed in the judge preview.' : <>{tierDef(cur).note} {why}</>}
-        {!judge && st?.source === 'user' && <> <button type="button" className="linkish" disabled={busy} onClick={() => void pick(null)}>Use the default</button></>}
-      </div>
-    </div>
-  );
-}
-
-/** The machine-wide video decode, as Setup shows it: whole clip or in chunks. */
-export function VideoDecodePicker() {
-  const st = useStore((s) => s.status?.videoDecode);
-  const judge = useStore((s) => !!s.status?.judge);
-  const [busy, setBusy] = useState(false);
-  async function pick(m: VideoDecode | null) {
-    setBusy(true);
-    try {
-      await api.setVideoDecode(m);
-      await refreshStatus();
-    } catch (e) {
-      toast(e instanceof Error ? e.message : 'could not save the video decode', true);
-    } finally {
-      setBusy(false);
-    }
-  }
-  const cur = st?.mode ?? 'whole';
-  const def = VIDEO_DECODES.find((d) => d.id === cur) ?? VIDEO_DECODES[0];
-  const autoLabel = VIDEO_DECODES.find((d) => d.id === st?.auto)?.label.toLowerCase() ?? '';
-  const why = !st ? '' : st.source === 'env' ? 'Set by OPENFIELD_VIDEO_DECODE.' : st.source === 'gpu' ? 'Picked for this GPU.' : `Your pick. This GPU's default is ${autoLabel}.`;
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, width: '100%' }}>
-      <div className="seg">
-        {VIDEO_DECODES.map((d) => (
-          <button key={d.id} type="button" className={cur === d.id ? 'on' : ''} disabled={busy || judge} title={d.note} onClick={() => void pick(d.id)}>
-            {d.label}
-          </button>
-        ))}
-      </div>
-      <div className="dim" style={{ fontSize: 12 }}>
-        {judge ? 'Fixed in the judge preview.' : <>{def.note} {why}</>}
-        {!judge && st?.source === 'user' && <> <button type="button" className="linkish" disabled={busy} onClick={() => void pick(null)}>Use the default</button></>}
-      </div>
-    </div>
-  );
-}
-
-// ---------- GPU chip (replaces a credits counter) ----------
-export function GpuChip() {
-  const st = useStore((s) => s.status);
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useClickAway(ref, () => setOpen(false), open);
-  // The badge is this app's takes; the engine's own queue can include other clients' jobs.
-  const active = st?.active?.length ?? 0;
-  const onEngine = st?.queueRemaining ?? 0;
-  const used = st?.vramTotalGb && st.vramFreeGb !== undefined ? st.vramTotalGb - st.vramFreeGb : undefined;
-  const pct = used !== undefined && st?.vramTotalGb ? Math.min(100, (used / st.vramTotalGb) * 100) : 0;
-  const state = !st ? '' : !st.up ? 'down' : active ? 'busy' : 'up';
-  const gpu = st?.target === 'cloud' ? 'Comfy Cloud' : st?.gpu?.replace(/^NVIDIA\s+(GeForce\s+)?/, '') ?? 'GPU';
-  return (
-    <div className="pop-wrap" ref={ref}>
-      <button type="button" className="gpu-chip" onClick={() => setOpen(!open)}>
-        <span className={`dot ${state}`} />
-        <span className="mono">{st?.up ? gpu : 'Engine off'}</span>
-        {st?.up && st.target !== 'cloud' && <span className="vram" title="VRAM in use"><i style={{ width: `${pct}%` }} /></span>}
-        {active > 0 && <span className="badge">{active} in queue</span>}
-      </button>
-      {open && (
-        <div className="popover down" style={{ width: 300, padding: 12 }}>
-          <div className="label" style={{ marginBottom: 8 }}>Engine</div>
-          <dl className="kv">
-            <dt>Target</dt><dd>{st?.target === 'cloud' ? 'Comfy Cloud' : 'Local ComfyUI'}</dd>
-            <dt>ComfyUI</dt><dd>{st?.up ? `v${st.version ?? '?'}` : 'not answering'}</dd>
-            <dt>Comfy API v2</dt><dd>{st?.api ? 'up' : 'down'}</dd>
-            {used !== undefined && <><dt>VRAM</dt><dd>{used.toFixed(1)} / {st!.vramTotalGb!.toFixed(1)} GB</dd></>}
-            <dt>Jobs</dt><dd>{active ? `${active} active` : 'idle'}</dd>
-            {onEngine > active && <><dt className="dim">Engine queue</dt><dd className="dim">{onEngine} on the engine</dd></>}
-          </dl>
-          <div className="label" style={{ margin: '12px 0 6px' }}>Render size</div>
-          <RenderTierPicker compact />
-          <div style={{ display: 'flex', gap: 6, marginTop: 12, flexWrap: 'wrap' }}>
-            {!st?.up && st?.canLaunch && (
-              <button type="button" className="btn sm accent" onClick={() => { toast('Starting the engine...'); void api.startEngine(); }}>Start engine</button>
-            )}
-            {st?.up && <button type="button" className="btn sm" onClick={() => void api.free().then(() => toast('VRAM freed'))}>Free VRAM</button>}
-            {active > 0 && <button type="button" className="btn sm danger" onClick={() => void api.clearQueue()}>Stop all</button>}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ---------- media card ----------
 export function aspectOf(t: Take): string {
   const s = settingsOf(t);
@@ -304,30 +155,22 @@ export function aspectOf(t: Take): string {
 }
 
 export function MediaCard({ take, onOpen, actions, pendingLabel, tag }: { take: Take; onOpen?: () => void; actions?: ReactNode; pendingLabel?: string; tag?: string }) {
-  const progress = useStore((s) => (take.prompt_id ? s.progress[take.prompt_id] : undefined));
-  const started = useStore((st) => !!take.prompt_id && !!st.started[take.prompt_id]);
-  const preview = useStore((s) => s.preview);
   const status = useStore((s) => s.status);
   const vref = useRef<HTMLVideoElement>(null);
   const s = settingsOf(take);
   const style = { ['--ar' as any]: aspectOf(take) };
 
   if (isActive(take)) {
-    // running once the engine says so (or its steps arrive); a first-in-line take only counts as
-    // running when nothing else is ahead of it in the engine's queue (another app may be using it)
+    // the job is live on the provider; there is no engine queue to report any more
     const first = status?.active?.[0]?.id === take.id;
-    const foreign = (status?.queueRemaining ?? 0) > (status?.active?.length ?? 0);
-    const running = started || !!progress || (first && !foreign);
-    const pct = progress ? Math.round((progress.value / Math.max(1, progress.max)) * 100) : 0;
     return (
       <div className="card pending" style={style}>
-        {running && preview && preview.promptId === take.prompt_id && <img src={preview.url} alt="" style={{ opacity: 0.85, filter: 'saturate(.9)' }} />}
         <div className="status">
           <div>
-            <div className="label" style={{ color: 'var(--accent)' }}>{running ? (progress?.max && progress.max !== 100 ? `Step ${progress.value}/${progress.max}` : 'Rendering') : first ? 'Waiting for the engine' : pendingLabel ?? 'Queued'}</div>
+            <div className="label" style={{ color: 'var(--accent)' }}>{first ? 'Generating' : pendingLabel ?? 'Queued'}</div>
           </div>
         </div>
-        <div className="progress"><i style={{ width: `${running ? pct : 0}%` }} /></div>
+        <div className="progress"><i style={{ width: '0%' }} /></div>
       </div>
     );
   }
@@ -340,59 +183,21 @@ export function MediaCard({ take, onOpen, actions, pendingLabel, tag }: { take: 
     );
   }
   const image = isImage(take);
-  const model = isModel(take);
   return (
     <div className={`card ${image && s.app === 'cutout' && s.background === 'transparent' ? 'checker' : ''}`} style={style} onClick={onOpen}
-      {...takeDragProps(take.id, (take.output_path ?? `take_${take.id}`).split(/[\\/]/).pop()!, image ? 'image/png' : model ? 'model/gltf-binary' : 'video/mp4')}
+      {...takeDragProps(take.id, (take.output_path ?? `take_${take.id}`).split(/[\\/]/).pop()!, image ? 'image/png' : 'video/mp4')}
       onMouseEnter={() => { const v = vref.current; if (v) { v.muted = true; void v.play().catch(() => {}); } }}
       onMouseLeave={() => { const v = vref.current; if (v) { v.pause(); v.currentTime = 0; } }}>
       <img src={posterUrl(take.id)} alt="" loading="lazy" />
-      {!image && <video ref={vref} src={model ? turntableUrl(take.id) : mediaUrl(take.id)} muted loop playsInline preload="none" />}
+      {!image && <video ref={vref} src={mediaUrl(take.id)} muted loop playsInline preload="none" />}
       <div className="kind">
         {tag && <span className="badge" style={{ marginRight: 4 }}>{tag}</span>}
-        {model && <span className="badge cool">3D</span>}
-        {!image && !model && <span className="badge cool">{s.outSeconds ?? s.seconds ? `${s.outSeconds ?? s.seconds}s` : 'video'}</span>}
+        {!image && <span className="badge cool">{s.outSeconds ?? s.seconds ? `${s.outSeconds ?? s.seconds}s` : 'video'}</span>}
         {s.cut && <span className="badge cool" style={{ marginLeft: 4 }}>{(s.shots ?? []).length} shots</span>}
-        {!image && s.seam && <span className={`badge seam ${s.seam.verdict === 'seamless' ? 'ok' : 'bad'}`} title={`Loop point: ${s.seam.ratio}x a frame step`}>{s.seam.verdict === 'seamless' ? 'Seamless' : 'Visible seam'}</span>}
-        {!image && s.app === 'hdr' && <span className="badge">HDR</span>}
       </div>
       <div className="quick" onClick={(e) => e.stopPropagation()}>{actions}</div>
       <div className="scrim" />
       <div className="meta"><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.userPrompt || s.prompt}</span></div>
-    </div>
-  );
-}
-
-export function fmtSeconds(sec: number | null | undefined): string {
-  if (!sec) return '';
-  if (sec < 90) return `~${Math.round(sec)}s`;
-  return `~${Math.round(sec / 60)} min`;
-}
-
-/** Live render-time estimate for the current settings. */
-export function useEstimate(q: Record<string, string | number> | null): number | null {
-  const [sec, setSec] = useState<number | null>(null);
-  const key = q ? JSON.stringify(q) : '';
-  useEffect(() => {
-    if (!q) return;
-    let dead = false;
-    const t = setTimeout(() => api.estimate(q).then((r) => !dead && setSec(r.seconds)).catch(() => {}), 250);
-    return () => { dead = true; clearTimeout(t); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key]);
-  return sec;
-}
-
-// ---------- judge preview ----------
-/** A slim strip under the top bar when the server runs as the judge preview. */
-export function JudgeBanner() {
-  const j = useStore((s) => s.status?.judge);
-  if (!j) return null;
-  return (
-    <div className="judge-banner" role="note">
-      <b>Judge preview.</b> This runs on a rented GPU with draft limits: up to {j.maxSeconds} seconds, 720p and one take per render.
-      {' '}Setup is read-only, and phone capture, project folders and deleting are off.
-      {' '}<span className="mono">{j.left} of {j.cap}</span> renders left today.
     </div>
   );
 }

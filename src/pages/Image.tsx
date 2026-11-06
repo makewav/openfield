@@ -5,10 +5,9 @@ import { usePageDrop } from '../drop';
 import { ASPECTS, IMAGE_MODELS, IMAGE_QUALITY, IMAGE_RES, sizeFor, type AspectId } from '../catalog';
 import { navigate, setParams, useRoute } from '../router';
 import { isImage, setHandoff, toast, useStore, inFeed } from '../store';
-import { ChipMenu, Clip, Icon, MediaCard, Spill, Stepper, fmtSeconds, presetClip, useEstimate } from '../ui';
+import { ChipMenu, Clip, Icon, MediaCard, Spill, Stepper, presetClip } from '../ui';
 import Viewer, { animate, recreate, remove } from '../Viewer';
 import { MentionBox } from '../Mention';
-import { LoraChips, useLoraPicks } from '../Loras';
 
 /** FLUX.2 reads up to six reference pictures, your own plus any @cast. */
 const MAX_REFS = 6;
@@ -25,7 +24,6 @@ export default function ImagePage() {
   const [res, setRes] = useState<'1K' | '2K'>('1K');
   const [count, setCount] = useState(1);
   const [busy, setBusy] = useState(false);
-  const [loras, setLoras] = useLoraPicks(model.id);
   const [refs, setRefs] = useState<{ token: string; name: string }[]>([]);
   const refInput = useRef<HTMLInputElement>(null);
   const refsOn = model.id === 'flux2';
@@ -51,7 +49,6 @@ export default function ImagePage() {
   const [viewing, setViewing] = useState<number | null>(null);
 
   const size = sizeFor(aspect, IMAGE_RES.find((r) => r.id === res)!.mp);
-  const est = useEstimate({ kind: 'still', model: model.id, quality, w: size.w, h: size.h });
   const takes = useStore((s) => s.takes.filter((t) => inFeed(t) && isImage(t)));
   const done = takes.filter((t) => t.status === 'done');
 
@@ -62,7 +59,6 @@ export default function ImagePage() {
       const r = await api.generate({
         kind: 'still', model: model.id, quality, prompt, userPrompt: prompt, width: size.w, height: size.h, count,
         shotName: prompt.slice(0, 40),
-        ...(loras.length ? { loras } : {}),
         ...(refsOn && refs.length ? { refImages: refs.map((r) => r.token) } : {}),
       });
       toast(`Queued ${r.takeIds.length} image${r.takeIds.length > 1 ? 's' : ''}`);
@@ -89,7 +85,7 @@ export default function ImagePage() {
               {['ink-bloom', 'golden', 'neon-rain', 'bloom'].map((id) => <div key={id}><Clip src={presetClip(id)} className="" /></div>)}
             </div>
             <div className="display" style={{ fontSize: 'clamp(38px,5.4vw,72px)' }}>Make an image with <span className="hl">{model.label}</span></div>
-            <p className="dim" style={{ marginTop: 14 }}>Open weights, on your own GPU. Describe it below.</p>
+            <p className="dim" style={{ marginTop: 14 }}>Generation runs on the model provider. Describe it below.</p>
           </div>
         ) : (
           <div className="grid dense" style={{ maxWidth: 1500, margin: '0 auto' }}>
@@ -137,13 +133,12 @@ export default function ImagePage() {
                     onChange={(e) => { if (e.target.files) void addRefs(Array.from(e.target.files)); e.target.value = ''; }} />
                 </>
               )}
-              <LoraChips family={model.id} value={loras} onChange={setLoras} />
             </div>
           </div>
           <button type="button" className="gen-tile" disabled={busy || !prompt.trim()} onClick={() => void go()}>
             <Icon name="sparkle" size={18} />
             Generate
-            <small>{size.w}x{size.h}{est ? <><br />{fmtSeconds(est * count)}</> : null}</small>
+            <small>{size.w}x{size.h}</small>
           </button>
         </div>
       </div>

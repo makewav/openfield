@@ -109,7 +109,7 @@ export function useGlobalDrop(): { dragging: boolean; label: string | null } {
       setDragging(false);
       const target = page;
       if (!target || !e.dataTransfer) {
-        toast('Open an app to use this file: drop it on Video, Edit, Stage, Mirror, Reshoot, Director, Effects, Upscale, Extend or Speak');
+        toast('Open an app to use this file: drop it on Video, Image, Edit, Cutout, Director, Upscale, Extend or Speak');
         return;
       }
       void droppedFiles(e.dataTransfer).then((f) => f.length && target.onFiles(f)).catch((err) => toast(String(err), true));

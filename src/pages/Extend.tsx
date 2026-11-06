@@ -10,7 +10,7 @@ import { usePageDrop } from '../drop';
 import { setParams, useRoute } from '../router';
 import { SourceSlot, loadFile, useTakeParam, type Source } from '../SourcePick';
 import { inFeed, settingsOf, toast, useStore } from '../store';
-import { ChipMenu, Icon, MediaCard, Stepper, Switch, TierChip, fmtSeconds, useEstimate, useTierChoice } from '../ui';
+import { ChipMenu, Icon, MediaCard, Stepper, Switch } from '../ui';
 import { tierSizeOf } from '../renderTier';
 import Viewer, { recreate, remove } from '../Viewer';
 
@@ -30,7 +30,6 @@ export default function ExtendPage() {
   const [count, setCount] = useState(1);
   const [busy, setBusy] = useState<string | null>(null);
   const [viewing, setViewing] = useState<number | null>(null);
-  const [res, setRes] = useTierChoice(params.get('mode') === 'transition' ? 'transition' : 'extend');
 
   // Viewer hand-off: ?take=<id> fills the first slot (Extend, or Transition from).
   useTakeParam(params.get('take'), (s) => { setSrc(s); setParams({ take: null }); });
@@ -61,12 +60,12 @@ export default function ExtendPage() {
   );
   const seconds = transition ? bridgeSeconds : extendSeconds;
   const setSeconds = transition ? setBridgeSeconds : setExtendSeconds;
-  // The render size at the shape of the clip (or, for two stills, the first one), 32-aligned.
+  // The render size at the shape of the clip (or, for two stills, the first one), 32-aligned,
+  // at a fixed 720p extent: there is no local render-size setting to follow any more.
   const size = (() => {
     const v = [src, to].find((s) => s?.kind === 'video') ?? src ?? to;
-    return tierSizeOf(res, v?.w, v?.h, 32);
+    return tierSizeOf('720p', v?.w, v?.h, 32);
   })();
-  const est = useEstimate({ kind: 'video', model: mode, w: size.w, h: size.h, seconds });
   const hasSound = transition ? true : !!src;
   const takes = useStore((s) => s.takes.filter((t) => inFeed(t) && settingsOf(t).app === mode));
   const ready = transition ? !!src && !!to : src?.kind === 'video';
@@ -164,14 +163,13 @@ export default function ExtendPage() {
         <div className="chip-row" style={{ alignItems: 'center' }}>
           <ChipMenu icon="clock" value={seconds} onChange={setSeconds} title={transition ? 'Bridge length' : 'New footage'}
             options={(transition ? [1, 2, 3, 4] : [2, 3, 5, 8]).map((d) => ({ value: d, label: `${transition ? '' : '+'}${d}s` }))} />
-          <TierChip app={transition ? 'transition' : 'extend'} value={res} onChange={setRes} />
           <Stepper value={count} min={1} max={4} onChange={setCount} fmt={(v) => `${v}/4`} />
           {hasSound && <span className="chip" style={{ gap: 10 }}><Icon name="audio" size={14} />Sound <Switch on={audio} onChange={setAudio} label="sound" /></span>}
         </div>
 
         <button type="button" className="generate" style={{ marginTop: 'auto' }} disabled={!!busy || !ready} onClick={() => void go()}>
           <span>{busy ?? (transition ? 'Make transition' : direction === 'forward' ? 'Extend' : 'Add lead-in')}</span>
-          <span className="cost">{size.w}x{size.h}{est ? ` · ${fmtSeconds(est * count)}` : ' · LTX-2.5'}</span>
+          <span className="cost">{size.w}x{size.h} · LTX-2.5</span>
         </button>
       </aside>
 

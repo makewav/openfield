@@ -6,13 +6,13 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { api, inputUrl, mediaUrl, takeAsInput, uploadFile, type Take } from '../api';
-import { EDIT_APPS, EXPAND_ASPECTS, RELIGHT_DIRECTIONS, IMAGE_QUALITY, editAppById, editVariants, type EditMode } from '../catalog';
+import { EDIT_APPS, EXPAND_ASPECTS, RELIGHT_DIRECTIONS, IMAGE_QUALITY, editAppById, editVariants } from '../catalog';
 import { navigate, setParams, useRoute } from '../router';
 import { inFeed, setHandoff, settingsOf, toast, useStore } from '../store';
-import { ChipMenu, Clip, Icon, MediaCard, Spill, Stepper, fmtSeconds, presetClip, useEstimate } from '../ui';
+import { ChipMenu, Clip, Icon, MediaCard, Spill, Stepper, presetClip } from '../ui';
 import Viewer, { animate, recreate, remove } from '../Viewer';
 import { useDropZone, usePageDrop } from '../drop';
-import { DropWell } from './Mirror';
+import { DropWell } from '../SourcePick';
 import { MentionBox } from '../Mention';
 
 interface Source { token: string; w: number; h: number; take?: number }
@@ -27,7 +27,7 @@ function dimsOf(url: string): Promise<{ w: number; h: number }> {
   });
 }
 
-/** Output size of an edit at 1 MP, mirroring server/graphs/edit.ts editSize (for the estimate and the chip). */
+/** Output size of an edit at 1 MP, snapped to 16 (shown by the size chip). */
 function outSize(w: number, h: number) {
   if (!w || !h) return { w: 1328, h: 752 };
   const ratio = w / h;
@@ -78,7 +78,6 @@ export default function EditPage() {
   const size = app.id === 'expand' && expandRatio
     ? outSize(expandRatio * 1000, 1000)
     : outSize(source?.w ?? 0, source?.h ?? 0);
-  const est = useEstimate({ kind: 'still', model: 'qwen-edit', quality, w: size.w, h: size.h });
   const takes = useStore((s) => s.takes.filter((t) => inFeed(t) && settingsOf(t).app === 'edit'));
   const many = app.id === 'free' || app.id === 'expand';
   let planned = 0;
@@ -257,14 +256,14 @@ export default function EditPage() {
 
         <div className="chip-row" style={{ alignItems: 'center' }}>
           <ChipMenu icon="res" value={quality} onChange={setQuality} title="Quality"
-            options={IMAGE_QUALITY.map((q) => ({ value: q.id, label: q.label, note: q.id === 'draft' ? '8 steps, ~9s each' : '20 steps, ~40s each' }))} />
+            options={IMAGE_QUALITY.map((q) => ({ value: q.id, label: q.label, note: q.note }))} />
           <span className="chip"><Icon name="aspect" size={14} />{source ? `${size.w}x${size.h}` : '1 MP'}</span>
           {many && <Stepper value={count} min={1} max={4} onChange={setCount} fmt={(v) => `${v}/4`} />}
         </div>
 
         <button type="button" className="generate" style={{ marginTop: 'auto' }} disabled={!!busy || !source || !planned} onClick={() => void go()}>
           <span>{busy ?? (planned > 1 ? `${app.id === 'free' ? 'Edit' : app.name} · ${planned}` : app.id === 'free' ? 'Edit' : app.name)}</span>
-          <span className="cost">{est ? fmtSeconds(est * Math.max(1, planned)) : 'Qwen-Image-Edit'}</span>
+          <span className="cost">Qwen-Image-Edit</span>
         </button>
       </aside>
 

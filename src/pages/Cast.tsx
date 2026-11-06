@@ -141,7 +141,7 @@ function CastForm({ member, onDone }: { member: CastMember | null; onDone: () =>
   }
 
   async function del() {
-    if (!member || !confirm(`Remove ${member.name} from the cast? Their pictures stay in your output folder.`)) return;
+    if (!member || !confirm(`Remove ${member.name} from the cast? Their pictures stay with your other media.`)) return;
     await api.deleteCast(member.id).catch((e) => toast(String(e), true));
     await refreshCast();
     onDone();

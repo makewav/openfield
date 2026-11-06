@@ -9,9 +9,9 @@ import { useEffect, useRef, useState } from 'react';
 import { downloadUrl, inputUrl, mediaUrl, posterUrl, uploadFile, type Take } from '../api';
 import { setParams, useRoute } from '../router';
 import { inFeed, isImage, isModel, settingsOf, toast, useStore } from '../store';
-import { ChipMenu, Icon, MediaCard, Spill, Switch, fmtSeconds, useEstimate } from '../ui';
+import { ChipMenu, Icon, MediaCard, Spill, Switch } from '../ui';
 import { recreate, remove } from '../Viewer';
-import { DropWell } from './Mirror';
+import { DropWell } from '../SourcePick';
 import { useDropZone, usePageDrop } from '../drop';
 import { api } from '../api';
 import {
@@ -127,9 +127,6 @@ export default function UpscalePage() {
   const seconds = video ? Math.round(Math.min(source!.seconds, cap) * 10) / 10 : 0;
   const blocked = mode === 'dream' && source?.kind === 'image' ? 'Dream works on video. Use Sharpen or Redraw for a still.' : null;
   const model = mode === 'sharpen' ? sharpModel : mode === 'redraw' ? redrawModel : undefined;
-  const est = useEstimate(source ? {
-    kind: video ? 'upres' : 'still', app: 'upscale', mode, ...(model ? { model } : {}), w: out.w, h: out.h, ...(video ? { seconds } : {}),
-  } : null);
   const engine = mode === 'sharpen' ? SHARPEN_MODELS.find((m) => m.id === sharpModel)!.label : mode === 'redraw' ? 'SeedVR2' : 'LTX-2.5';
 
   async function go() {
@@ -248,7 +245,7 @@ export default function UpscalePage() {
 
         <button type="button" className="generate" style={{ marginTop: 'auto' }} disabled={!!busy || !source || !!blocked} onClick={() => void go()}>
           <span>{busy ?? modeDef.label}</span>
-          <span className="cost">{est ? fmtSeconds(est) : engine}</span>
+          <span className="cost">{engine}</span>
         </button>
       </aside>
 
@@ -362,7 +359,7 @@ function BeforeAfter({ take }: { take: Take }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginTop: 10, flexWrap: 'wrap' }}>
         <div className="dim" style={{ fontSize: 12.5 }}>
           Drag across the frame to compare.{scale > 1 ? ' Move the pointer to look around.' : ''}
-          {take.render_seconds ? ` Rendered in ${Math.round(take.render_seconds)}s on this GPU.` : ''}
+          {take.render_seconds ? ` Rendered in ${Math.round(take.render_seconds)}s.` : ''}
           {!before && ' The source of this take is no longer available.'}
         </div>
         <div style={{ display: 'flex', gap: 6 }}>

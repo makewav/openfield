@@ -1,23 +1,18 @@
 /**
- * App-wide live state: takes (the asset feed), engine status, per-job
- * progress and the latest preview frame. One socket feeds it; components
- * subscribe with useStore(selector).
+ * App-wide state: the take feed, provider status and toasts. Components
+ * subscribe with useStore(selector). There is no live socket any more: the
+ * provider is polled, because a serverless deployment cannot hold one open.
  */
 import { useSyncExternalStore } from 'react';
-import { api, connectLive, type PhoneEvent, type Status, type Take } from './api';
+import { api, type Status, type Take } from './api';
 
 export interface Live {
   takes: Take[];
   status: Status | null;
-  progress: Record<string, { value: number; max: number }>;
-  /** Jobs the engine has started (the rest of the active takes are waiting in its line). */
-  started: Record<string, true>;
-  /** The newest live preview frame and the render it belongs to. */
-  preview: { url: string; promptId: string | null } | null;
   toast: { text: string; err?: boolean } | null;
 }
 
-let state: Live = { takes: [], status: null, progress: {}, started: {}, preview: null, toast: null };
+let state: Live = { takes: [], status: null, toast: null };
 const listeners = new Set<() => void>();
 function set(patch: Partial<Live>) {
   state = { ...state, ...patch };
@@ -44,7 +39,7 @@ export async function refreshTakes() {
   try {
     set({ takes: await api.takes(null) });
   } catch {
-    /* server down; status shows it */
+    /* the provider is unreachable; the status chip shows it */
   }
 }
 
@@ -56,41 +51,17 @@ export async function refreshStatus() {
   }
 }
 
-function upsert(t: Take) {
-  const i = state.takes.findIndex((x) => x.id === t.id);
-  const takes = i >= 0 ? state.takes.map((x) => (x.id === t.id ? t : x)) : [t, ...state.takes];
-  const progress = { ...state.progress };
-  if (t.status !== 'rendering' && t.status !== 'queued' && t.prompt_id) delete progress[t.prompt_id];
-  set({ takes, progress });
-}
-
 let started = false;
+/** Start polling. Takes every 3 s while a job is live, status every 4 s. */
 export function startLive() {
   if (started) return;
   started = true;
   void refreshTakes();
   void refreshStatus();
   setInterval(refreshStatus, 4000);
-  connectLive({
-    onProgress: (p) => set({ progress: { ...state.progress, [p.promptId]: { value: p.value, max: p.max } } }),
-    onStarted: (id) => set({ started: { ...state.started, [id]: true } }),
-    onPreview: (url, promptId) => set({ preview: { url, promptId } }),
-    onTake: (t) => {
-      upsert(t);
-      // A finished render's last frame must never show on the next one.
-      if (t.status !== 'rendering' && state.preview?.promptId && state.preview.promptId === t.prompt_id) set({ preview: null });
-      if (t.status === 'failed') toast(`Render failed: ${t.error ?? 'unknown error'}`, true);
-    },
-    onQueue: () => void refreshStatus(),
-    onPhone: (e) => phoneListeners.forEach((l) => l(e)),
-  });
-}
-
-/** Phone hand-off events are one-shot, so they go to listeners rather than into state. */
-const phoneListeners = new Set<(e: PhoneEvent) => void>();
-export function onPhoneEvent(l: (e: PhoneEvent) => void): () => void {
-  phoneListeners.add(l);
-  return () => { phoneListeners.delete(l); };
+  setInterval(() => {
+    if (state.takes.some(isActive)) void refreshTakes();
+  }, 3000);
 }
 
 /** Settings JSON of a take, parsed once. */
@@ -105,7 +76,7 @@ export function settingsOf(t: Take): any {
 }
 
 export const isImage = (t: Take) => t.kind === 'still';
-/** An Object take: a GLB, with a turntable mp4 standing in for it wherever media plays. */
+/** An Object take: a GLB. Kept for older rows; the Object app is gone. */
 export const isModel = (t: Take) => t.kind === 'object';
 export const isActive = (t: Take) => t.status === 'queued' || t.status === 'rendering';
 
@@ -118,6 +89,6 @@ let handoff: { refs: Ref[]; prompt?: string } | null = null;
 export function setHandoff(h: { refs: Ref[]; prompt?: string }) { handoff = h; }
 export function takeHandoff() { const h = handoff; handoff = null; return h; }
 
-/** Takes that belong in a feed: not cancelled, not internal renders (preset previews, angle previews). */
+/** Takes that belong in a feed: not cancelled, not internal renders. */
 const INTERNAL_APPS = new Set(['preset-thumb', 'reshoot-warp']);
 export const inFeed = (t: Take) => t.status !== 'stopped' && !INTERNAL_APPS.has(settingsOf(t).app);

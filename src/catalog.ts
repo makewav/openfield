@@ -1,8 +1,8 @@
 /**
  * What the UI offers: models, motion presets, aspect/resolution menus.
- * Every model here is open weights and runs on the local engine.
+ * Every model here is served by the model provider; nothing renders locally.
  */
-import { RENDER_TIERS, capTier, tierSize, tierSizeOf, type RenderTier } from './renderTier.js';
+import { RENDER_TIERS, tierSize, tierSizeOf, type RenderTier } from './renderTier.js';
 
 export type MediaKind = 'image' | 'video';
 
@@ -159,13 +159,7 @@ export function compilePrompt(parts: (string | undefined | false)[]): string {
     .join(' ');
 }
 
-/** Object app detail levels; the numbers mirror server/graphs/trellis.ts OBJECT_QUALITY. */
-export const OBJECT_DETAIL = [
-  { id: 'draft', label: 'Draft', note: 'Up to 150k faces, 2K textures. About 2 minutes on a 5090. Check the shape here.' },
-  { id: 'quality', label: 'High', note: 'Up to 400k faces, 4K textures plus baked normal and AO maps. About 5 minutes on a 5090.' },
-] as const;
-
-/** The app gallery. `route` is where Try opens; `soon` apps are listed but locked. */
+/** The app gallery. `route` is where Try opens. */
 export interface AppDef {
   id: string;
   name: string;
@@ -174,14 +168,14 @@ export interface AppDef {
   icon: string;
   hue: number;
   cat: 'create' | 'direct' | 'transform' | 'finish';
-  badge?: 'new' | 'soon' | 'top';
+  badge?: 'new' | 'top';
   /** Motion preset whose rendered clip stands in as this app's cover art. */
   cover: string;
   /** A clip of the app's own output under public/, used as the cover in place of the preset clip. */
   clip?: string;
 }
 
-export const badgeLabel = (b: AppDef['badge']) => (b === 'top' ? 'Top' : b === 'new' ? 'New' : b === 'soon' ? 'Soon' : '');
+export const badgeLabel = (b: AppDef['badge']) => (b === 'top' ? 'Top' : b === 'new' ? 'New' : '');
 
 export const APP_CATS = [
   { id: 'all', label: 'All' },
@@ -197,11 +191,7 @@ export const APPS: AppDef[] = [
   { id: 'loop', name: 'Seamless Loop', blurb: 'Turn one image into a loop whose first and last frames match.', route: '/video?mode=loop', icon: 'loop', hue: 160, cat: 'create', cover: 'dreamlike', clip: '/apps/loop.mp4' },
   { id: 'cast', name: 'Cast', blurb: 'Save a character, prop or place once and @mention it in any prompt.', route: '/cast', icon: 'person', hue: 28, cat: 'direct', cover: 'handheld', clip: '/apps/cast.mp4' },
   { id: 'director', name: 'Director', blurb: 'Set genre, camera, light, film stock, era and speed ramp, and they compile into the shot.', route: '/director', icon: 'film', hue: 18, cat: 'direct', badge: 'new', cover: 'noir', clip: '/apps/director.mp4' },
-  { id: 'stage', name: 'Stage', blurb: 'Block a shot in 3D and render it as a finished shot that moves like the blocking.', route: '/stage', icon: 'camera', hue: 36, cat: 'direct', badge: 'new', cover: 'push-in', clip: '/apps/stage.mp4' },
   { id: 'scene', name: 'Scene', blurb: 'Write a scene and get it planned, shot and cut into one take.', route: '/director?mode=scene', icon: 'grid', hue: 28, cat: 'direct', cover: 'crane-up', clip: '/apps/scene.mp4' },
-  { id: 'effects', name: 'Effects', blurb: 'Apply a one-click effect to a clip or a still, from cutout and flood to pop and inflate.', route: '/effects', icon: 'sparkle', hue: 300, cat: 'transform', badge: 'new', cover: 'shatter', clip: '/apps/effects.mp4' },
-  { id: 'mirror', name: 'Mirror', blurb: 'Film a move on your phone and put that motion onto any character.', route: '/mirror', icon: 'mirror', hue: 280, cat: 'transform', badge: 'new', cover: 'snorricam', clip: '/apps/mirror.mp4' },
-  { id: 'reshoot', name: 'Reshoot', blurb: 'Re-aim the camera on an existing clip: orbit, rise or push in after the fact.', route: '/reshoot', icon: 'orbit', hue: 230, cat: 'transform', cover: 'freeze-orbit', clip: '/apps/reshoot.mp4' },
   { id: 'edit', name: 'Edit', blurb: 'Change a still with a sentence, and paint a mask to keep the rest exactly.', route: '/edit', icon: 'wand', hue: 250, cat: 'transform', cover: 'ink-bloom' },
   { id: 'angle', name: 'New angle', blurb: 'See the same scene from new camera positions, as a grid of angles.', route: '/edit?app=angle', icon: 'orbit', hue: 210, cat: 'transform', cover: 'orbit-right' },
   { id: 'coverage', name: 'Coverage', blurb: 'Get nine shots of one moment from one image, from wide to extreme close-up.', route: '/edit?app=coverage', icon: 'grid', hue: 150, cat: 'direct', cover: 'truck-left' },
@@ -214,7 +204,6 @@ export const APPS: AppDef[] = [
   { id: 'transition', name: 'Transitions', blurb: 'Bridge two takes or stills with a generated move such as a morph or a whip pan.', route: '/extend?mode=transition', icon: 'loop', hue: 300, cat: 'finish', cover: 'whip-pan', clip: '/apps/transition.mp4' },
   { id: 'upscale', name: 'Upscale', blurb: 'Sharpen, redraw or dream any take or file at a higher resolution.', route: '/upscale', icon: 'up', hue: 50, cat: 'finish', cover: 'rack-focus', clip: '/apps/upscale.mp4' },
   { id: 'speak', name: 'Speak', blurb: 'Turn a face and a voice track into a talking shot that follows the audio.', route: '/speak', icon: 'person', hue: 12, cat: 'transform', cover: 'handheld' },
-  { id: 'object', name: 'Object', blurb: 'Turn one still into a textured 3D model you can spin, download or place in Stage.', route: '/object', icon: 'cube', hue: 30, cat: 'create', cover: 'turntable', clip: '/apps/object.mp4' },
   { id: 'sound', name: 'Add sound', blurb: 'Generate a soundtrack for a silent take and keep the picture as it is.', route: '/speak?mode=sound', icon: 'audio', hue: 190, cat: 'create', cover: 'storm' },
 ];
 
@@ -233,9 +222,9 @@ export const RECIPES: Recipe[] = [
 export const recipeUrl = (r: Recipe) => `${r.route}?preset=${r.preset}&prompt=${encodeURIComponent(r.prompt)}`;
 
 /**
- * Director axes. Each option is a prompt fragment; the page and the MCP server
- * both compile them with directorDirection() below. A genre option also `sets`
- * the other axes when it is picked (the user can override them after).
+ * Director axes. Each option is a prompt fragment; the page compiles them with
+ * directorDirection() below. A genre option also `sets` the other axes when it
+ * is picked (the user can override them after).
  */
 export interface DirectorOption { id: string; label: string; text: string; sets?: Record<string, string> }
 export interface DirectorAxis { id: string; label: string; icon: string; options: DirectorOption[] }
@@ -321,8 +310,7 @@ export function pickGenre(picks: Record<string, string>, genre: string): Record<
 
 /**
  * Era scrubber, 1960 to 2020. The prompt snaps to the nearest decade; the
- * grade is a real color pass on the output (server/graphs/director.ts, a
- * GLSL shader in the graph) blended between the two decades either side.
+ * grade values blend between the two decades either side.
  */
 export const ERA_MIN = 1960;
 export const ERA_MAX = 2020;
@@ -388,8 +376,8 @@ export function directorDirection(picks: Record<string, string>, era: number | n
 /**
  * Speed ramps: a retime after the render. Each is a speed curve over the
  * source clip (1 = real time, 0.25 = quarter speed). Slow parts are filled
- * with RIFE frames in the graph, then frames are picked along the curve, so
- * the shot's length changes. Ramped shots render without sound.
+ * with interpolated frames, then frames are picked along the curve, so the
+ * shot's length changes. Ramped shots render without sound.
  */
 export const SPEED_RAMPS = [
   { id: 'linear', label: 'Linear', note: 'Real time' },
@@ -418,9 +406,9 @@ export function rampSpeed(id: RampId, u: number): number {
 }
 
 /**
- * The retime of a clip of `frames` frames: how many in-between frames RIFE
- * makes per source frame (`multiplier`), and which frames of that dense batch
- * the output keeps, in order. Output frame k advances the source by
+ * The retime of a clip of `frames` frames: how many in-between frames the
+ * retime makes per source frame (`multiplier`), and which frames of that dense
+ * batch the output keeps, in order. Output frame k advances the source by
  * speed(u) source frames.
  */
 export function rampPlan(id: RampId, frames: number): { multiplier: number; indices: number[]; outFrames: number } {
@@ -443,10 +431,9 @@ export const rampSeconds = (id: RampId, seconds: number, fps = 24) =>
   Math.round((rampPlan(id, Math.round(seconds * fps) + 1).outFrames / fps) * 10) / 10;
 
 /**
- * Multi-shot: one scene becomes a shot list (server-side local LLM, or written
- * by hand), each shot an LTX job, then one cut. `cast` is the seam for the Cast
- * app: cast member ids whose hero frame the shot starts from (server/scene.ts,
- * castHeroSeam).
+ * Multi-shot: one scene becomes a shot list (planned by a model, or written by
+ * hand), each shot one generation, then one cut. `cast` is the seam for the Cast
+ * app: cast member ids whose hero frame the shot starts from.
  */
 export interface SceneShot {
   framing: string;      // a DIRECTOR_AXES framing id
@@ -454,7 +441,7 @@ export interface SceneShot {
   action: string;       // what happens in this shot
   seconds: number;      // 2 to 6
   ramp?: RampId;        // overrides the scene's ramp
-  cast?: number[];      // cast member ids (Cast app); see castHeroSeam in server/scene.ts
+  cast?: number[];      // cast member ids (Cast app) whose hero frame the shot starts from
   /** A finished video take to reuse instead of shooting this one again. */
   take?: number;
 }
@@ -474,26 +461,9 @@ export function shotPrompt(shot: Pick<SceneShot, 'framing' | 'move' | 'action'>,
   return compilePrompt([presetById(shot.move).text, framing && `${framing[0].toUpperCase()}${framing.slice(1)}`, shot.action, direction.join(', ')]);
 }
 
-/** Mirror control tracks: what of the source clip is kept. */
-export const MIRROR_CONTROLS = [
-  { id: 'pose', label: 'Body motion', note: 'Tracks the skeleton: performance, dance, gesture.' },
-  { id: 'depth', label: 'Whole scene', note: 'Keeps the shape of the space and the camera move.' },
-  { id: 'edges', label: 'Outlines', note: 'Keeps contours tightly. Best for objects and graphics.' },
-] as const;
-
-/** Reshoot angle shortcuts (degrees of orbit and height). */
-export const RESHOOT_ANGLES = [
-  { id: 'orbit-r', label: 'Orbit right', az: 30, el: 0 },
-  { id: 'orbit-l', label: 'Orbit left', az: -30, el: 0 },
-  { id: 'high', label: 'From above', az: 0, el: 25 },
-  { id: 'low', label: 'From below', az: 0, el: -15 },
-  { id: 'three-q', label: 'Three-quarter', az: 40, el: 12 },
-];
-
 /**
- * Upscale app. Three ways to add resolution, each a ComfyUI graph in
- * server/graphs/upscale.ts. The page, the server and the MCP server all size
- * the output with upscaleSize() so the three never disagree.
+ * Upscale app. Three ways to add resolution. The page sizes the output with
+ * upscaleSize() so the menus and the request body never disagree.
  */
 export type UpscaleMode = 'sharpen' | 'redraw' | 'dream';
 
@@ -601,9 +571,9 @@ export const SOUND_PROMPT = 'Natural sound that matches the scene: ambience, mov
 
 /**
  * Edit app modes. Each one-click image app compiles chip picks into a list of
- * instructions for Qwen-Image-Edit; every instruction becomes one take, shown
- * together as a grid. Free mode is a single instruction run `count` times.
- * Names are ours. The page and the MCP server both call editVariants().
+ * instructions for the image-edit model; every instruction becomes one take,
+ * shown together as a grid. Free mode is a single instruction run `count`
+ * times. Names are ours. The page calls editVariants() to compile them.
  */
 export type EditMode = 'free' | 'angle' | 'coverage' | 'pushin' | 'next' | 'relight' | 'expand';
 
@@ -798,7 +768,7 @@ export function editVariants(mode: EditMode, p: EditPicks): EditVariant[] {
 
 /**
  * Cut out (Remove background). Stills always use the soft matte; clips pick a
- * method. Names are ours. The page, the server and the MCP server read these.
+ * method. Names are ours. The page reads these.
  */
 export type CutoutMode = 'matte' | 'track' | 'hybrid';
 export type CutoutBackground = 'transparent' | 'color' | 'blur' | 'image';
@@ -828,76 +798,3 @@ export function cutoutSize(w: number, h: number): { w: number; h: number } {
   const s = Math.min(1, CUTOUT_MAX_EDGE / Math.max(w, h));
   return { w: even(w * s), h: even(h * s) };
 }
-
-/**
- * Restyle (in Mirror): frame 0 is redrawn in the style, then Mirror carries the
- * source's motion through it. `text` is the look, used both in the edit
- * instruction and in the shot prompt. Names are ours.
- */
-export interface RestyleStyle { id: string; label: string; text: string }
-
-export const RESTYLE_STYLES: RestyleStyle[] = [
-  { id: 'watercolor', label: 'Watercolor', text: 'a loose watercolor painting on textured paper, soft bleeding washes of color, visible brush strokes and white paper showing through' },
-  { id: 'oil', label: 'Oil paint', text: 'a thick impasto oil painting, bold visible brush strokes, rich saturated pigment, canvas texture' },
-  { id: 'clay', label: 'Claymation', text: 'a stop-motion claymation scene, everything sculpted from smooth plasticine with fingerprint texture, miniature set lighting' },
-  { id: 'anime', label: 'Anime cel', text: 'a hand-drawn 2D anime cel, clean ink outlines, flat cel shading with two-tone shadows, painted background' },
-  { id: '3d', label: '3D animated', text: 'a polished 3D animated feature film frame, soft subsurface skin, stylized proportions, warm global illumination' },
-  { id: 'pencil', label: 'Pencil sketch', text: 'a graphite pencil sketch on off-white paper, cross-hatched shading, loose construction lines' },
-  { id: 'ink', label: 'Comic ink', text: 'a black and white comic book page panel, bold brush ink lines, heavy spot blacks, halftone dot shading' },
-  { id: 'charcoal', label: 'Charcoal', text: 'a smudged charcoal drawing, deep soft blacks, rough paper grain, expressive strokes' },
-  { id: 'pixel', label: 'Pixel art', text: '16-bit pixel art, a limited palette, crisp square pixels, dithered shading' },
-  { id: 'lowpoly', label: 'Low poly', text: 'a low-poly 3D render, flat-shaded triangular facets, simple gradients, clean geometry' },
-  { id: 'paper', label: 'Paper cutout', text: 'layered paper cutout craft, cut colored card stock with soft drop shadows between the layers' },
-  { id: 'stained', label: 'Stained glass', text: 'a stained glass window, jewel-colored glass panes separated by dark lead lines, light glowing through' },
-  { id: 'woodcut', label: 'Woodcut', text: 'a woodcut print, bold carved black lines, rough wood grain texture, two-color ink on paper' },
-  { id: 'embroidery', label: 'Embroidery', text: 'a detailed embroidery on linen, every shape stitched in colored thread, visible stitch texture' },
-  { id: 'marble', label: 'Marble statue', text: 'everything carved from white veined marble, a museum sculpture, soft gallery light' },
-  { id: 'chrome', label: 'Liquid chrome', text: 'everything made of mirror-polished liquid chrome, reflecting a bright studio environment' },
-  { id: 'toy', label: 'Plastic toy', text: 'a miniature world of glossy molded plastic toys, tilt-shift depth of field, bright toy colors' },
-  { id: 'noir', label: 'Film noir', text: 'a black and white film noir frame, hard single key light, deep shadows, venetian blind light, film grain' },
-  { id: 'neon', label: 'Neon night', text: 'a rain-soaked neon city at night, magenta and cyan signs reflecting on every wet surface' },
-  { id: 'winter', label: 'Deep winter', text: 'the same place buried in deep snow during a quiet snowfall, frost on every surface, cold blue light' },
-  { id: 'thermal', label: 'Thermal camera', text: 'a thermal imaging camera view, warm bodies glowing white and orange against a cold purple and blue background' },
-  { id: 'blueprint', label: 'Blueprint', text: 'a technical blueprint drawing, fine white construction lines on deep blue paper, measurements and grid' },
-];
-
-export const restyleById = (id: string) => RESTYLE_STYLES.find((s) => s.id === id);
-
-/** The look, from a style chip and/or the user's own words. */
-export function restyleLook(styleId: string | null | undefined, text: string): string {
-  const style = styleId ? restyleById(styleId) : undefined;
-  return compilePrompt([style?.text, text.trim()]);
-}
-
-/** What Qwen-Image-Edit is told to do to frame 0. */
-export function restyleInstruction(look: string): string {
-  return compilePrompt([
-    `Redraw this entire image as ${look}`,
-    'Keep the exact composition and framing, every person and their pose, and every object in the same place and at the same size.',
-  ]);
-}
-
-/** What LTX is told the finished shot looks like. */
-export function restylePrompt(look: string): string {
-  return compilePrompt([`The whole scene rendered as ${look}`, 'Same people, same actions and the same camera movement as the source clip.']);
-}
-
-/** Restyle keeps the shape of the scene (depth) or its outlines (edges). Body pose alone loses the world. */
-export const RESTYLE_CONTROLS = MIRROR_CONTROLS.filter((c) => c.id !== 'pose');
-
-/** Object swap (in Mirror): what LTX is told fills the masked region. */
-export function swapPrompt(replacement: string): string {
-  return compilePrompt([replacement, 'It moves naturally with the scene, lit by the same light, filmed by the same camera.']);
-}
-
-/**
- * Mirror / Restyle / Object swap working frame for a clip of w x h at a tier
- * (capped at 720p, see APP_MAX_TIER), 64-aligned. IC-LoRA renders fail on a
- * 32-but-not-64 grid (928x512 gives an odd latent grid).
- */
-export function mirrorSize(w: number, h: number, tier: RenderTier): { w: number; h: number } {
-  return tierSizeOf(capTier(tier, '720p'), w, h, 64);
-}
-
-/** Object swap reads at most this much of a clip (the inpaint pass holds every frame). */
-export const SWAP_MAX_SECONDS = 8;

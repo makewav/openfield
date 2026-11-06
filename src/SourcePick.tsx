@@ -3,10 +3,9 @@
  * pick one of your takes, or drop a file. Either way the media is uploaded as
  * an input and comes back as a token plus the facts the page sizes itself by.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { mediaUrl, posterUrl, takeAsInput, uploadFile, type Take } from './api';
 import { useDropZone } from './drop';
-import { DropWell } from './pages/Mirror';
 import { isImage, isModel, settingsOf, toast, useStore } from './store';
 import { Icon } from './ui';
 
@@ -156,6 +155,33 @@ export function SourceSlot(p: {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+/** Duration and frame size of a clip, read by the browser. Unreadable codecs fall back to 5 s, unknown size. */
+export function probeClip(url: string): Promise<{ s: number; w: number; h: number }> {
+  return new Promise((res) => {
+    const v = document.createElement('video');
+    v.preload = 'metadata';
+    v.muted = true;
+    v.onloadedmetadata = () => res({ s: v.duration, w: v.videoWidth, h: v.videoHeight });
+    v.onerror = () => res({ s: 5, w: 0, h: 0 });
+    v.src = url;
+  });
+}
+
+/** The accept-a-file well used by every source slot. */
+export function DropWell(p: { accept: string; onFile: (f: File) => void; icon: string; title: string; sub: string; compact?: boolean }) {
+  const input = useRef<HTMLInputElement>(null);
+  const zone = useDropZone((files) => p.onFile(files[0]));
+  return (
+    <div className={`well ${zone.over ? 'drag' : ''}`} style={p.compact ? { padding: 10 } : undefined}
+      onClick={() => input.current?.click()} {...zone.props}>
+      <input ref={input} type="file" accept={p.accept} hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) p.onFile(f); }} />
+      {!p.compact && <div className="well-icons"><span><Icon name={p.icon} /></span></div>}
+      <div style={{ fontWeight: 600, color: 'var(--text)' }}>{p.title}</div>
+      {p.sub && <div style={{ fontSize: 12, marginTop: 2 }}>{p.sub}</div>}
     </div>
   );
 }
